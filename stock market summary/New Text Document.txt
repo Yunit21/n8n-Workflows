@@ -1,0 +1,17 @@
+This workflow automatically checks the stock market on a schedule.
+
+It first checks if the US stock market is open.
+
+If the market is closed, it does nothing.
+
+If the market is open:
+
+It looks at a fixed list of stocks.
+
+It fetches recent daily price data for those stocks.
+
+It calculates two basic indicators (RSI and MACD).
+
+Based on simple rules, each stock is marked as Buy, Sell, or Hold.
+
+The results are formatted and sent as a message on Telegram.

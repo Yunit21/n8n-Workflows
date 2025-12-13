@@ -1,0 +1,335 @@
+{
+  "name": "stock market summary",
+  "nodes": [
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"symbols\": \"AAPL,MSFT,NVDA,TSLA,AMZN,GOOGL,META,JPM,XOM,UNH,GME\"\n}\n",
+        "options": {}
+      },
+      "id": "ffd191c0-6256-4b88-9c15-09cf994cfaf8",
+      "name": "Ticker List",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        2240,
+        208
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "url": "=https://data.alpaca.markets/v2/stocks/bars",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbols",
+              "value": "={{ $json.symbols }}"
+            },
+            {
+              "name": "timeframe",
+              "value": "1Day"
+            },
+            {
+              "name": "limit",
+              "value": "1000"
+            },
+            {
+              "name": "feed",
+              "value": "iex"
+            },
+            {
+              "name": "=start",
+              "value": "={{ new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}"
+            },
+            {
+              "name": "end",
+              "value": "={{ new Date().toISOString().split('T')[0] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5c89b62-b258-4a76-b96c-e5ac82bdd846",
+      "name": "Fetch Stock Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2464,
+        208
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "OLudZ9OGJILDyvJJ",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import pandas as pd\nimport numpy as np\nimport json\n\nbars_by_symbol = items[0]['json']['bars']\nstocks = []\n\nfor symbol, bars in bars_by_symbol.items():\n    closes = [bar['c'] for bar in bars if 'c' in bar]\n    if len(closes) < 30:\n        continue\n\n    df = pd.DataFrame({'close': closes})\n\n    # RSI(14)\n    delta = df['close'].diff()\n    gain = delta.clip(lower=0)\n    loss = -delta.clip(upper=0)\n    avg_gain = gain.rolling(14).mean()\n    avg_loss = loss.rolling(14).mean()\n    rs = avg_gain / avg_loss\n    df['rsi'] = 100 - (100 / (1 + rs))\n\n    # MACD (12,26,9)\n    ema12 = df['close'].ewm(span=12, adjust=False).mean()\n    ema26 = df['close'].ewm(span=26, adjust=False).mean()\n    df['macd'] = ema12 - ema26\n    df['signal'] = df['macd'].ewm(span=9, adjust=False).mean()\n\n    latest = df.iloc[-1]\n    rsi = latest['rsi']\n    macd = latest['macd']\n    signal = latest['signal']\n\n    status = \"Hold\"\n    if rsi < 30 and macd > signal:\n        status = \"Buy\"\n    elif rsi > 70 and macd < signal:\n        status = \"Sell\"\n\n    stocks.append({\n        \"ticker\": symbol,\n        \"rsi\": round(float(rsi), 2),\n        \"macd\": round(float(macd), 2),\n        \"signal\": round(float(signal), 2),\n        \"status\": status\n    })\n\nreturn [{\n    \"json\": {\n        \"summary\": json.dumps({\n            \"stocks\": stocks\n        }, separators=(',', ':')),\n      \"stocks\": stocks\n    }\n}]\n"
+      },
+      "id": "ebc4aeff-88ce-4279-a59d-64340c1726ea",
+      "name": "Interpret Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2688,
+        208
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 30 6-14 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "20b8fd9d-2043-426a-9fa0-1d23253b70d7",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        1568,
+        224
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "acca2d72-d9db-436d-aee8-81a3a359fe85",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.is_open }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "54a5d4cd-69b0-4b59-906c-4e31b3a32210",
+      "name": "Check if Market is open",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2000,
+        224
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {},
+      "id": "ca690fbf-8e6d-400c-b80c-316163152c9e",
+      "name": "Market is Closed",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        2240,
+        400
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/clock",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "feb7497c-c55b-419b-b647-b5ee132e09ef",
+      "name": "Check Market Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1792,
+        224
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "OLudZ9OGJILDyvJJ",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here is the technical indicator data as JSON:  {{ $json.summary }}  Pulled as of {{ $now }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        2912,
+        208
+      ],
+      "id": "4137e0a7-80a5-4cc1-abcb-cb59a4e85f90",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2896,
+        384
+      ],
+      "id": "de6256ee-a52c-468e-b5df-115c2b5f5a34",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "0qx7MVBn4PpeYK6I",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3248,
+        208
+      ],
+      "id": "bdc76faf-8138-44a5-8c9a-941ab60ca3b8",
+      "name": "Send a text message",
+      "webhookId": "1014451f-c60c-4f7a-90a4-06dc472fc3ca",
+      "credentials": {
+        "telegramApi": {
+          "id": "QpkbaVk6M2l95xNC",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ticker List": {
+      "main": [
+        [
+          {
+            "node": "Fetch Stock Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Stock Data": {
+      "main": [
+        [
+          {
+            "node": "Interpret Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpret Data": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Market Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Market is open": {
+      "main": [
+        [
+          {
+            "node": "Ticker List",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Market is Closed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Market Status": {
+      "main": [
+        [
+          {
+            "node": "Check if Market is open",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e0a85ac7-0b26-4d19-9cd0-b011714b6db4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ae21f7ff983ee929f98e8d7968bbd21b49d1a44f2e129169348ba847d37dd5ac"
+  },
+  "id": "ols6jq6DqlDdWdXf",
+  "tags": []
+}
