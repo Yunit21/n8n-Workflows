@@ -1,0 +1,53 @@
+⚙️ Built an AI workflow that turns audio files into a searchable knowledge base
+
+I recently built an end-to-end automation in n8n that does something really powerful with audio content 👇
+
+🎧 Upload an audio file
+→ 📝 Automatically transcribed & summarized using AI
+→ 🧠 Stored as embeddings for future Q&A
+→ 💬 Chat with the audio like a document
+
+How the workflow works:
+
+1️⃣ User uploads an audio file via a form
+2️⃣ Audio is sent to AssemblyAI for:
+
+Speech-to-text
+
+Speaker labels
+
+Bullet-point summaries
+3️⃣ The transcript is:
+
+Chunked
+
+Embedded using Google Gemini
+
+Stored in Pinecone (vector database)
+4️⃣ File activity is logged in Google Sheets
+5️⃣ A chatbot retrieves relevant context from Pinecone and answers questions based on the uploaded audio
+
+📌 Result:
+You can ask questions about meetings, podcasts, calls, or interviews — and get accurate answers directly from the audio content.
+
+Tech stack:
+
+n8n (automation)
+
+AssemblyAI (STT + summarization)
+
+Google Gemini (embeddings + chat)
+
+Pinecone (vector search)
+
+Google Sheets (logging)
+
+This kind of workflow is perfect for:
+🎯 Meeting intelligence
+🎯 Podcast knowledge bases
+🎯 Call analysis
+🎯 Internal documentation from voice data
+
+Automation + AI makes unstructured data actually usable.
+
+#n8n #AIWorkflow #Automation #RAG #VectorDatabase #AssemblyAI #GoogleGemini #NoCode #LLM #AIChatbot
